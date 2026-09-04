@@ -16,8 +16,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.1' # match your local `flutter --version`
-          channel: 'stable'
+          channel: 'stable' # always latest stable, avoids Dart SDK version mismatches
 
       - name: Install dependencies
         run: flutter pub get
