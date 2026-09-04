@@ -1,0 +1,30 @@
+name: Test & Analyze
+
+# Runs on every push and every pull request, on any branch - so a mistake
+# gets caught the moment it's pushed, not weeks later when a full APK
+# build finally happens. Deliberately does NOT build an APK here (that's
+# build-release.yml, triggered separately) - keeping this one fast means
+# it finishes in ~1-2 minutes and doesn't slow down day-to-day pushes.
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.1' # match your local `flutter --version`
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze (catches the same errors VS Code's Dart Analyzer shows you)
+        run: flutter analyze
+
+      - name: Run tests (extensions_test.dart, models_test.dart, widget_test.dart)
+        run: flutter test

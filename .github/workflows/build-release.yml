@@ -1,0 +1,58 @@
+name: Build & Attach Release APK
+
+# Fires when you publish a GitHub Release (Releases -> Draft a new release
+# -> Publish). This replaces the manual "build APK on my laptop, then
+# upload it by hand" step - the APK appears as a download on the release
+# page automatically, a few minutes after you click Publish.
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.1' # match your local `flutter --version`
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Signing: without this, Flutter falls back to a debug key that's
+      # freshly generated on every CI run - meaning every release would
+      # have a DIFFERENT signature, and Android refuses to install an
+      # update over an existing app if the signature changed (the person
+      # would have to uninstall the old version first every single time).
+      # Decoding a real keystore from a secret here keeps the signature
+      # identical across releases so normal in-place updates work.
+      # See SETUP_NOTES_cicd.md for how to generate/upload these secrets.
+      - name: Decode signing keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release-keystore.jks
+
+      - name: Write key.properties
+        run: |
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
+          storeFile=release-keystore.jks
+          EOF
+
+      # Same --dart-define values used for local testing, but pulled from
+      # GitHub Secrets instead of typed on a command line - so the real
+      # Sentry/OneSignal ids ship in the built APK without ever being
+      # committed to the repo itself.
+      - name: Build release APK
+        run: >
+          flutter build apk --release
+          --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          --dart-define=ONESIGNAL_APP_ID=${{ secrets.ONESIGNAL_APP_ID }}
+
+      - name: Attach APK to this release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/app/outputs/flutter-apk/app-release.apk
